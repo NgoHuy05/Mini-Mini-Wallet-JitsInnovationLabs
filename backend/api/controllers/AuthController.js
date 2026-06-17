@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs');
-
+const jwt = require('jsonwebtoken');
 module.exports = {
   login: async (req, res) => {
     try {
@@ -21,9 +21,13 @@ module.exports = {
         return res.error(1001);
       }
 
+      const token = jwt.sign(
+        { id: user.id, phone: user.phone },
+        sails.config.custom.ACCESS_TOKEN_SECRET,
+        { expiresIn: '7d' }
+      );
       delete user.password;
-
-      return res.ok(user);
+      return res.ok({user, token});
     } catch (error) {
       return res.error(500);
     }
@@ -60,5 +64,7 @@ module.exports = {
     } catch (error) {
       return res.error(500);
     }
-  }
+  },
+
+  // refreshToken: async (req, res) => {}
 };
