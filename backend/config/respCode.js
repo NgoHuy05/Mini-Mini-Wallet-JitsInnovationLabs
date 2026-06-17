@@ -13,6 +13,7 @@ module.exports.respCode = {
   1000: 'phone number already exists',
   1001: 'invalid phone or password',
   1002: 'account not found',
+  1003: 'password does not match',
 
   // ===== WALLET =====
   2000: 'wallet not found',
