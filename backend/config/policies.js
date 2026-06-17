@@ -13,6 +13,11 @@ module.exports.policies = {
     register: true,
     login: true
   },
+
+  PocketController: {
+    '*': 'isAuthenticated'
+  },
+
   '*': false,
 
 };

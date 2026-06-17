@@ -58,9 +58,13 @@ module.exports = {
         password: hashedPassword,
       }).fetch();
 
+      const pocket = await Pocket.create({
+        owner: user.id
+      }).fetch();
+
       delete user.password;
 
-      return res.ok(user);
+      return res.ok({user, pocket});
     } catch (error) {
       return res.error(500);
     }

@@ -10,7 +10,7 @@ module.exports = async function (req, res, proceed) {
 
     const token = authHeader.split(' ')[1];
 
-    const decoded = jwt.verify(token, sails.config,custom.ACCESS_TOKEN_SECRET);
+    const decoded = jwt.verify(token, sails.config.custom.ACCESS_TOKEN_SECRET);
 
     req.user = decoded;
 
