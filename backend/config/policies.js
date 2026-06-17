@@ -18,6 +18,10 @@ module.exports.policies = {
     '*': 'isAuthenticated'
   },
 
+  TransactionController: {
+    '*': 'isAuthenticated'
+  },
+
   '*': false,
 
 };
