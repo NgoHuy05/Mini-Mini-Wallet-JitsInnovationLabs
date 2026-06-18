@@ -16,6 +16,7 @@ module.exports = async function (req, res, proceed) {
 
     return proceed();
   } catch (err) {
+    console.log(err);
     return res.error(403);
   }
 };
