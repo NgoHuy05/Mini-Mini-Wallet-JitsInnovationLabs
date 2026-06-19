@@ -27,12 +27,32 @@ module.exports = {
       if (senderPocket.balance < amount) {
         return res.error(2001); // 2001: 'insufficient balance',
       }
+      const updatedSender = await Pocket.updateOne({
+        id: senderPocket.id,
+        balance: { '>=': amount }
+      }).set({
+        balance: senderPocket.balance - amount
+      });
 
-      await Pocket.updateOne({ id: senderPocket.id })
-        .set({ balance: senderPocket.balance - amount });
+      if (!updatedSender) {
+        return res.error(2001);
+      }
 
-      await Pocket.updateOne({ id: receiverPocket.id })
-        .set({ balance: receiverPocket.balance + amount });
+      const updatedReceiver = await Pocket.updateOne({
+        id: receiverPocket.id
+      }).set({
+        balance: receiverPocket.balance + amount
+      });
+
+      if (!updatedReceiver) {
+        await Pocket.updateOne({
+          id: senderPocket.id
+        }).set({
+          balance: senderPocket.balance
+        });
+
+        return res.error(500);
+      }
 
       const transaction = await Transaction.create({
         sender: req.user.id,
