@@ -1,57 +1,46 @@
+const { ObjectId } = require('mongodb');
 module.exports = {
   transferMoney: async (req, res) => {
     try {
       const { phone, amount } = req.body;
 
-      const senderPocket = await Pocket.findOne({ owner: req.user.id });
-      const receiverCustomer = await Customer.findOne({ phone });
-
       if (!phone || !amount || amount <= 0) {
-        return res.error(4000); //   4000: 'missing required fields',
+        return res.error(4000); // 4000: 'missing required fields'
       }
 
+      const receiverCustomer = await Customer.findOne({ phone });
       if (!receiverCustomer) {
-        return res.error(2004); //  2004: 'receiver not found',
+        return res.error(2004); // 2004: 'receiver not found'
       }
 
       if (req.user.id === receiverCustomer.id) {
-        return res.error(2003); // 2003: 'cannot transfer to yourself',
+        return res.error(2003); // 2003: 'cannot transfer to yourself'
       }
 
-      const receiverPocket = await Pocket.findOne({ owner: receiverCustomer.id });
+      const db = sails.getDatastore().manager.collection('pocket');
+      const senderObjectId = new ObjectId(req.user.id);
+      const receiverObjectId = new ObjectId(receiverCustomer.id);
 
-      if (!receiverPocket) {
-        return res.error(2004); // 2004 receiver pocket not found
+      const updateBalanceSender = await db.updateOne(
+        { owner: senderObjectId, balance: { $gte: amount } },
+        { $inc: { balance: -amount } }
+      );
+
+      if (updateBalanceSender.modifiedCount === 0) {
+        return res.error(2001); // 2001: 'insufficient balance'
       }
 
-      if (senderPocket.balance < amount) {
-        return res.error(2001); // 2001: 'insufficient balance',
-      }
-      const updatedSender = await Pocket.updateOne({
-        id: senderPocket.id,
-        balance: { '>=': amount }
-      }).set({
-        balance: senderPocket.balance - amount
-      });
+      const updateBalanceReceiver = await db.updateOne(
+        { owner:receiverObjectId },
+        { $inc: { balance: amount } }
+      );
 
-      if (!updatedSender) {
-        return res.error(2001);
-      }
-
-      const updatedReceiver = await Pocket.updateOne({
-        id: receiverPocket.id
-      }).set({
-        balance: receiverPocket.balance + amount
-      });
-
-      if (!updatedReceiver) {
-        await Pocket.updateOne({
-          id: senderPocket.id
-        }).set({
-          balance: senderPocket.balance
-        });
-
-        return res.error(500);
+      if (updateBalanceReceiver.modifiedCount === 0) {
+        await db.updateOne(
+          { owner: senderObjectId },
+          { $inc: { balance: amount } }
+        );
+        return res.error(2004); // 2004: 'receiver pocket not found'
       }
 
       const transaction = await Transaction.create({
@@ -75,7 +64,7 @@ module.exports = {
           { sender: req.user.id },
           { receiver: req.user.id }
         ]
-      });
+      }).sort('createdAt DESC');
 
       return res.ok(history);
     } catch (error) {
@@ -87,7 +76,7 @@ module.exports = {
     try {
       const history = await Transaction.find({
         receiver: req.user.id
-      });
+      }).sort('createdAt DESC');
 
       return res.ok(history);
     } catch (error) {
@@ -99,7 +88,7 @@ module.exports = {
     try {
       const history = await Transaction.find({
         sender: req.user.id
-      });
+      }).sort('createdAt DESC');
 
       return res.ok(history);
     } catch (error) {
