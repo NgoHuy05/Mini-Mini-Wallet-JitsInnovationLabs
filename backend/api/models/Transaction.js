@@ -15,7 +15,7 @@ module.exports = {
     status: {
       type: 'string',
       isIn: ['success', 'failed'],
-      defaultsTo: 'success',
+      defaultsTo: 'failed',
     }
   }
 };

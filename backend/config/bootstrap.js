@@ -10,7 +10,8 @@
  */
 
 module.exports.bootstrap = async function() {
-
+  const mongo = require('./mongoClient');
+  await mongo.connect();
   // By convention, this is a good place to set up fake data during development.
   //
   // For example:

@@ -1,59 +1,89 @@
 const { ObjectId } = require('mongodb');
+const { client, getDb } = require('../../config/mongoClient');
+
 module.exports = {
   transferMoney: async (req, res) => {
+    const session = client.startSession();
+
     try {
       const { phone, amount } = req.body;
+      const amountNum = Number(amount);
 
-      if (!phone || !amount || amount <= 0) {
-        return res.error(4000); // 4000: 'missing required fields'
+      if (!phone || !amountNum || amountNum <= 0) {
+        return res.error(4000);
       }
 
       const receiverCustomer = await Customer.findOne({ phone });
       if (!receiverCustomer) {
-        return res.error(2004); // 2004: 'receiver not found'
+        return res.error(2004);
       }
 
       if (req.user.id === receiverCustomer.id) {
-        return res.error(2003); // 2003: 'cannot transfer to yourself'
+        return res.error(2003);
       }
 
-      const db = sails.getDatastore().manager.collection('pocket');
-      const senderObjectId = new ObjectId(req.user.id);
-      const receiverObjectId = new ObjectId(receiverCustomer.id);
+      const db = getDb();
 
-      const updateBalanceSender = await db.updateOne(
-        { owner: senderObjectId, balance: { $gte: amount } },
-        { $inc: { balance: -amount } }
-      );
+      const senderId = new ObjectId(req.user.id);
+      const receiverId = new ObjectId(receiverCustomer.id);
 
-      if (updateBalanceSender.modifiedCount === 0) {
-        return res.error(2001); // 2001: 'insufficient balance'
-      }
+      let txId;
 
-      const updateBalanceReceiver = await db.updateOne(
-        { owner:receiverObjectId },
-        { $inc: { balance: amount } }
-      );
+      await session.withTransaction(async () => {
 
-      if (updateBalanceReceiver.modifiedCount === 0) {
-        await db.updateOne(
-          { owner: senderObjectId },
-          { $inc: { balance: amount } }
+        const sender = await db.collection('pocket').updateOne(
+          { owner: senderId, balance: { $gte: amountNum } },
+          { $inc: { balance: -amountNum } },
+          { session }
         );
-        return res.error(2004); // 2004: 'receiver pocket not found'
+
+        if (sender.modifiedCount === 0) {
+          throw new Error('INSUFFICIENT');
+        }
+
+        const receiver = await db.collection('pocket').updateOne(
+          { owner: receiverId },
+          { $inc: { balance: amountNum } },
+          { session }
+        );
+
+        if (receiver.modifiedCount === 0) {
+          throw new Error('RECEIVER_NOT_FOUND');
+        }
+
+        const tx = await db.collection('transaction').insertOne(
+          {
+            sender: senderId,
+            receiver: receiverId,
+            amount: amountNum,
+            status: 'success',
+            createdAt: new Date()
+          },
+          { session }
+        );
+
+        txId = tx.insertedId;
+      });
+
+      return res.ok({
+        _id: txId,
+        amount: amountNum
+      });
+
+    } catch (err) {
+
+      if (err.message === 'INSUFFICIENT') {
+        return res.error(2001);
       }
 
-      const transaction = await Transaction.create({
-        sender: req.user.id,
-        receiver: receiverCustomer.id,
-        amount,
-        status: 'success'
-      }).fetch();
+      if (err.message === 'RECEIVER_NOT_FOUND') {
+        return res.error(2004);
+      }
 
-      return res.ok(transaction);
-
-    } catch (error) {
       return res.error(500);
+
+    } finally {
+      await session.endSession();
     }
   },
 
